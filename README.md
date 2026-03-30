@@ -7,7 +7,7 @@
 
 ## Overview
 
-This project builds an integrated AI Agent ecosystem using the **Model Context Protocol (MCP)** on n8n, deployed locally via **Docker** (with PostgreSQL backend) and exposed to the internet using a **Cloudflare Quick Tunnel** — replacing ngrok as the tunneling solution. The agent is connected to a **Telegram Bot** for real-time messaging and to **Google Calendar** for autonomous event management, demonstrating a practical NLU-powered scheduling assistant capable of understanding natural language commands and taking real-world actions.
+This project builds an integrated AI Agent ecosystem using the **Model Context Protocol (MCP)** on n8n, deployed locally via **Docker** (with PostgreSQL backend) and exposed to the internet using a **Cloudflare Quick Tunnel** — replacing ngrok as the tunneling solution. The agent is connected to a **Telegram Bot** for real-time messaging and to **Google Calendar** for full **CRUD** event management (Create, Read, Update, Delete), demonstrating a practical NLU-powered scheduling assistant capable of understanding natural language commands and taking real-world actions.
 
 > **Infrastructure note:** Instead of ngrok (as described in the guide), this setup uses `cloudflared tunnel --url http://localhost:5678` which generates a temporary public HTTPS URL with no account or token required. The URL is used as the n8n Webhook/Production URL for all MCP and Telegram callbacks.
 
@@ -23,13 +23,16 @@ n8n is self-hosted via **Docker Compose** backed by a **PostgreSQL 16** database
 cloudflared tunnel --url http://localhost:5678
 ```
 
-This creates a stable HTTPS endpoint (e.g., `https://rick-vitamin-hu-commissioners.trycloudflare.com`) that n8n uses as its `WEBHOOK_URL`, making all webhooks and MCP SSE endpoints reachable from the internet.
+This creates a stable HTTPS endpoint (e.g., `https://twiki-council-appointments-injuries.trycloudflare.com`) that n8n uses as its `WEBHOOK_URL`, making all webhooks and MCP SSE endpoints reachable from the internet.
 
 ![Cloudflare Tunnel Terminal](assets/cloudflare_tunnel.png)
 *Cloudflare Quick Tunnel running in the terminal — the generated public HTTPS URL is printed and used as the n8n Webhook URL throughout the entire assignment.*
 
 ![n8n Accessed via Cloudflare URL](assets/1.1.png)
-*n8n dashboard loaded in the browser via the public Cloudflare URL, confirming the tunnel is active and the instance is reachable from the internet. The URL bar shows the trycloudflare.com domain.*
+*n8n Welcome page loaded in the browser via the public Cloudflare URL, confirming the tunnel is active and the instance is reachable from the internet.*
+
+![n8n Workflows Overview](assets/1.1_home.png)
+*n8n workflow dashboard showing all workflows. Both **MCP Server** and **Client Side** are marked **Published** (green badge), confirming they are active and accessible via the public tunnel URL.*
 
 ---
 
@@ -46,7 +49,7 @@ A dedicated workflow named **"MCP Server"** acts as the tool provider. An **MCP 
 The workflow is toggled **Active** (Published). The resulting **Production URL** (ending in `/sse`) is the SSE endpoint that the AI Agent Client connects to.
 
 ![MCP Server Workflow](assets/1.2.png)
-*MCP Server workflow: MCP Server Trigger connected to Calculator, Date & Time, and HTTP Request (Get_Latest_News). The workflow is in Active/Published state, exposing all three tools over the SSE endpoint.*
+*MCP Server workflow: MCP Server Trigger connected to Calculator, Date & Time, and HTTP Request (Get_Latest_News). The **↑ Published** indicator at the top-right confirms the workflow is active, exposing all three tools over the SSE endpoint.*
 
 ---
 
@@ -65,7 +68,7 @@ A second workflow named **"Client Side"** contains the AI Agent. It is configure
 The agent is verified by chatting directly in n8n. The execution log shows the MCP Client discovering and invoking tools on the MCP Server.
 
 ![Client Side — MCP News Query](assets/1.3.png)
-*Client Side workflow executing a news query. The user asks for the latest BBC news; the agent calls the MCP Client → HTTP Request tool and returns structured headlines. The execution log on the right confirms the full tool call chain: AI Agent → Simple Memory → Groq Chat Model → MCP Client → HTTP Request.*
+*Client Side workflow executing a news query. The user asks for the latest BBC news; the agent calls the MCP Client → HTTP Request tool and returns structured BBC headlines. The execution log on the right confirms the full tool call chain: AI Agent → Simple Memory → Groq Chat Model → MCP Client → HTTP Request.*
 
 ---
 
@@ -82,24 +85,32 @@ The Client Side workflow is extended to use **Telegram** as the messaging channe
 Flow: `Telegram Trigger → AI Agent → Send a text message`
 
 ![Telegram Workflow in n8n](assets/2.1.png)
-*Client Side workflow updated with Telegram Trigger (left) and Send a text message node (right). The execution log shows a successful Telegram send in ~470ms, with the output confirming the `message_id` and chat details.*
+*Client Side workflow updated with Telegram Trigger (left) and Send a text message node (right). The execution log shows a successful Telegram send, with the output confirming the `message_id` and chat details.*
 
 ![Telegram Bot — Date & News](assets/2.1_telegram.png)
-*Live Telegram conversation: the bot correctly reports today's date as **March 30, 2026** (Bangkok timezone) using the Date & Time MCP tool, and fetches five BBC News front-page headlines using the Get_Latest_News MCP tool — both tools invoked transparently via the MCP Server.*
+*Live Telegram conversation: the bot correctly reports today's date as **March 30, 2026** (Bangkok timezone) using the Date & Time MCP tool, and fetches BBC News front-page headlines using the Get_Latest_News MCP tool — both tools invoked transparently via the MCP Server.*
 
 ---
 
 ### 2.2 Google Calendar Tool (0.5 pts)
 
-Two **Google Calendar** nodes are added to the AI Agent's tool set via OAuth 2.0 credentials (Google Cloud Console — Calendar API enabled, redirect URI set to the Cloudflare tunnel URL):
+Five **Google Calendar** nodes are added to the AI Agent's tool set via OAuth 2.0 credentials (Google Cloud Console — Calendar API enabled, redirect URI set to the Cloudflare tunnel URL), providing full **CRUD** capability:
 
-- **Create an event in Google Calendar** — creates new calendar events with title, date range, and all-day flag
-- **Get many events in Google Calendar** — retrieves upcoming events for read/verification queries
+| Tool Node | Action | Purpose |
+| --------- | ------ | ------- |
+| **Create an event** | CREATE | Creates new calendar events with title, date range, all-day flag |
+| **Get many events** | READ | Lists upcoming events within a date range |
+| **Get an event** | READ | Retrieves a single event by ID or by querying a specific date |
+| **Update an event** | UPDATE | Modifies event title, dates, or description |
+| **Delete an event** | DELETE | Permanently removes an event from the calendar |
 
 The agent's system prompt is configured to treat Asia/Bangkok (UTC+7) as the default timezone and always use ISO 8601 date formatting.
 
-![Google Calendar Tools Added](assets/2.2.png)
-*The AI Agent now has five tools: Groq Chat Model, Simple Memory, MCP Client, Create an event in Google Calendar, and Get many events in Google Calendar. The execution log shows the agent successfully listing all four project phase events with Google Calendar direct links.*
+![Google Calendar Tools — Full CRUD Workflow](assets/2.2.png)
+*AI Agent with all five Google Calendar tools visible. The execution log shows the agent confirming all four project phase events with Google Calendar direct links.*
+
+![Final Client Side Workflow — All Tools](assets/2.3_flow.png)
+*Final Client Side workflow state: Telegram Trigger → AI Agent → Send a text message. The AI Agent has 8 tools: Groq Chat Model, Simple Memory, MCP Client, and all five Google Calendar tools (Create, Get Many, Get One, Update, Delete). Execution log confirms successful calendar event creation.*
 
 ---
 
@@ -114,7 +125,7 @@ A natural language scheduling command is sent to the bot via Telegram, requestin
 > *4. '4th Phase: Final (Presentation)' May 19 to May 25, 2026*
 > *Each should be an all-day event."*
 
-The agent parses the intent, calls **Create an event in Google Calendar** four times, and replies with a confirmation summary table and direct links.
+The agent parses the intent, calls **Create an event in Google Calendar** four times, and replies with a confirmation summary.
 
 | # | Event | Start | End |
 | - | ----- | ----- | --- |
@@ -124,35 +135,89 @@ The agent parses the intent, calls **Create an event in Google Calendar** four t
 | 4 | 4th Phase: Final (Presentation) | 2026-05-19 | 2026-05-25 |
 
 ![Telegram — Scheduling Command & Confirmation](assets/2.3telegram.png)
-*Telegram conversation: the user sends the project scheduling command; the bot confirms all four phases have been added to Google Calendar, with a summary table showing event titles, date ranges, and clickable direct links to each Google Calendar event. Then, n8n execution log for the scheduling command. The workflow shows: Telegram Trigger → AI Agent (invoking Create an event ×4) → Send a text message. The agent output in the right panel lists all four phases with ISO-formatted start/end dates and Google Calendar event URLs.*
+*Telegram conversation: after verifying the date and fetching news via MCP tools, the user sends the project scheduling command. The bot confirms all four phases are created in Google Calendar with their exact date ranges.*
+
+**Google Calendar — April 2026 (after creation):**
+
+![Google Calendar April 2026](assets/2.3Apr.png)
+*April 2026 calendar view confirming **"1st Phase: Literature Review"** (Apr 7–20) and the start of **"2nd Phase: Project Proposal"** (Apr 21) are created as all-day events.*
+
+**Google Calendar — May 2026 (after creation):**
+
+![Google Calendar May 2026](assets/2.3May.png)
+*May 2026 calendar view confirming **"2nd Phase: Project Proposal"** (ending May 4), **"3rd Phase: Update Progress"** (May 5–18), and **"4th Phase: Final (Presentation)"** (May 19–25) — all four phases visible on the calendar.*
 
 ---
 
-### 2.4 Interaction Verification (1 pt)
+### 2.4 Interaction Verification — Full CRUD (1 pt)
 
-A follow-up verification query is sent via Telegram to confirm the events are live on Google Calendar:
+The agent is verified through a complete **Create → Read → Update → Delete** cycle, all triggered via natural language in Telegram.
+
+#### Read — Get Many Events
 
 > *"What are my upcoming project phases? Can you list all events on my calendar for the next month?"*
 
-The bot calls **Get many events in Google Calendar**, retrieves all four events, and responds with the full schedule.
+![n8n — Get Many Execution](assets/2.4_GetMany.png)
+*n8n execution log: AI Agent calls **Get many events in Google Calendar**, retrieves all four project phases, and returns them to the Telegram user.*
 
-![Telegram — Verification Query](assets/2.4_telegram.png)
-*Telegram verification conversation: the bot reads back all four project phases with their exact date ranges using the Get many events tool, confirming the events exist on Google Calendar. The user's second message is answered with a correctly formatted upcoming-events summary.*
+![Telegram — Get Many](assets/2.4_GetMany_telegram.png)
+*Bot lists all four project phase events with exact date ranges, confirming the events are live and readable from Google Calendar.*
 
-**Google Calendar — April 2026:**
+---
 
-![Google Calendar April 2026](assets/2.4Apr.png)
-*April 2026 calendar view showing **"1st Phase: Literature Review"** spanning Apr 7–20 and **"2nd Phase: Project Proposal"** beginning Apr 21, both displayed as all-day events across the correct date range.*
+#### Read — Get One Event by Date
 
-**Google Calendar — May 2026:**
+> *"What event I have on 12 April 2026?"*
 
-![Google Calendar May 2026](assets/2.4May.png)
-*May 2026 calendar view showing **"2nd Phase: Project Proposal"** (ending May 4), **"3rd Phase: Update Progress"** (May 5–18), and **"4th Phase: Final (Presentation)"** (May 19–25) — all four phases are visually confirmed on the calendar.*
+![n8n — Get One Execution](assets/2.4_GetOne.png)
+*n8n execution log: **Get an event in Google Calendar** returns the "1st Phase: Literature Review" event details (ID, summary, start/end times) for April 12, 2026.*
 
-**Final workflow state:**
+![Telegram — Get One](assets/2.4_GetOne_telegram.png)
+*Bot correctly identifies that on April 12, 2026, the user has **"1st Phase: Literature Review"** — demonstrating single-event lookup by date.*
 
-![Full Client Side Workflow](assets/2.4_full.png)
-*Final state of the Client Side workflow: Telegram Trigger → AI Agent (Groq Chat Model, Simple Memory, MCP Client, Create an event, Get many events) → Send a text message. Execution log confirms the agent correctly lists all four upcoming phases in response to the verification query.*
+---
+
+#### Update Event
+
+> *"Update literature review to Start April 10 2026 and End with April 21 2026"*
+
+![n8n — Update Execution](assets/2.4_Update.png)
+*n8n execution log: **Update an event in Google Calendar** successfully modifies the "1st Phase: Literature Review" event — new start: 2026-04-10, new end: 2026-04-21. The output confirms the updated event ID and timestamps.*
+
+![Telegram — Update Confirmation](assets/2.4_Update_telegram.png)
+*Bot confirms the update: "The '1st Phase: Literature Review' event has been updated to start on April 10, 2026, and end on April 21, 2026."*
+
+![Google Calendar — After Update](assets/2.4_Update_calendar.png)
+*April 2026 calendar showing **"1st Phase: Literature Review"** now starts on April 10 (shifted from April 7), reflecting the update command from Telegram.*
+
+---
+
+#### Delete Event
+
+> *"Delete 1st Phase: Literature Review"*
+
+![Google Calendar — Before Delete](assets/2.4_Before_delete.png)
+*April 2026 calendar showing the state before deletion — "1st Phase: Literature Review" (Apr 10–21) and "2nd Phase: Project Proposal" are visible. "Event saved" toast confirms the calendar is live.*
+
+![n8n — Delete Execution](assets/2.4_Delete.png)
+*n8n execution log: **Delete an event in Google Calendar** returns `success: true` — the event has been permanently removed.*
+
+![Telegram — Delete Confirmation](assets/2.4_Delete_telegram.png)
+*Bot confirms: "The event '1st Phase: Literature Review' has been deleted from your Google Calendar."*
+
+![Google Calendar — After Delete](assets/2.4_After_delete.png)
+*April 2026 calendar after deletion — "1st Phase: Literature Review" is gone. Only "2nd Phase: Project Proposal" (Apr 21+) and an unrelated event remain, confirming the delete was successful.*
+
+---
+
+#### Final State
+
+After the CRUD cycle, the event is re-added to restore the original schedule:
+
+> *"Add '1st Phase: Literature Review' April 7 to April 20, 2026"*
+
+![Telegram — Full CRUD Conversation](assets/2.4_final_telegram.png)
+*Complete Telegram conversation thread showing the full CRUD cycle: Create (×4) → Get Many → Update → Get One → Delete → Re-create. The bot handles every operation correctly through natural language, demonstrating end-to-end Google Calendar management.*
 
 ---
 
@@ -174,7 +239,10 @@ The bot calls **Get many events in Google Calendar**, retrieves all four events,
                    │    ├── Simple Memory (Window Buffer, k=10)      │
                    │    ├── MCP Client ──► MCP Server (SSE)         │
                    │    ├── Create an event in Google Calendar       │
-                   │    └── Get many events in Google Calendar       │
+                   │    ├── Get many events in Google Calendar       │
+                   │    ├── Get an event in Google Calendar          │
+                   │    ├── Update an event in Google Calendar       │
+                   │    └── Delete an event in Google Calendar       │
                    │       ↓                                         │
                    │  Send a text message (Telegram)                 │
                    └─────────────────────────────────────────────────┘
@@ -191,7 +259,7 @@ The bot calls **Get many events in Google Calendar**, retrieves all four events,
 | **Memory** | Window Buffer Memory — context window 10 turns |
 | **MCP Tools** | Calculator, Date & Time (Code), Get_Latest_News (BBC RSS via HTTP) |
 | **Messaging** | Telegram Bot API — ST126235 NLP A7 Schedule Bot |
-| **Calendar** | Google Calendar API via OAuth 2.0 (Create + Get events) |
+| **Calendar** | Google Calendar API via OAuth 2.0 — full CRUD (Create, Get Many, Get One, Update, Delete) |
 
 ---
 
@@ -236,7 +304,7 @@ docker compose restart n8n
     - Configure Groq API credentials (llama-3.3-70b-versatile)
     - Set MCP Client SSE Endpoint to the MCP Server Production URL
     - Configure Telegram Bot credentials (Bot Token from BotFather)
-    - Configure Google Calendar OAuth2 credentials
+    - Configure Google Calendar OAuth2 credentials (5 nodes: Create, Get Many, Get One, Update, Delete)
 - Activate the Client Side workflow
 ```
 
